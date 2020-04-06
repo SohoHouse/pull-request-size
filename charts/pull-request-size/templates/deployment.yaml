@@ -1,0 +1,63 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: {{ template "pull-request-size.fullname" . }}
+  labels:
+{{ include "pull-request-size.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  {{- with .Values.strategy }}
+  strategy:
+{{ toYaml . | indent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "pull-request-size.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+{{ include "pull-request-size.labels" . | indent 8 }}
+{{- with .Values.podAnnotations }}
+      annotations:
+{{ toYaml . | indent 8 }}
+{{- end }}
+    spec:
+      imagePullSecrets:
+        - name: sohohouse-k8s-deploy-pull-secret
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        ports:
+        - containerPort: {{ .Values.service.internalPort }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.service.internalPort }}
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /
+            port: {{ .Values.service.internalPort }}
+          initialDelaySeconds: 5
+          timeoutSeconds: 5
+          periodSeconds: 5
+        env:
+          - name: APP_ID
+            value: {{ .Values.config.appId }}
+          - name: WEBHOOK_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "pull-request-size.fullname" . }}
+                key: webhookSecret
+          - name: PRIVATE_KEY
+            valueFrom:
+              secretKeyRef:
+                name: {{ template "pull-request-size.fullname" . }}
+                key: privateKey
+        {{- with .Values.resources }}
+        resources:
+{{ toYaml . | indent 10 }}
+        {{- end }}

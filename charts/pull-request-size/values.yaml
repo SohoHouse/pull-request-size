@@ -1,0 +1,30 @@
+replicaCount: 1
+
+# Override in environment values files
+strategy: {}
+
+# Override in environment values files
+resources: {}
+
+image:
+  repository: quay.io/sohohouse/pull-request-size
+  tag: latest
+  pullPolicy: Always
+
+podAnnotations:
+  prometheus.io/scrape: "false"
+
+service:
+  internalPort: 3000
+  externalPort: 80
+  type: ClusterIP
+
+git:
+  branch: master
+
+config:
+  appId: 59986
+
+secrets:
+  webhookSecret: override in .drone.yml
+  privateKey: override in .drone.yml

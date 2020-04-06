@@ -1,0 +1,115 @@
+---
+kind: pipeline
+name: default
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: restore-cache
+  pull: if-not-exists
+  image: drillster/drone-volume-cache
+  settings:
+    mount:
+    - ./node_modules
+    restore: true
+  volumes:
+  - name: drillster_cache
+    path: /cache
+
+- name: install
+  pull: if-not-exists
+  image: node:10
+  commands:
+  - yarn install --frozen-lockfile
+  depends_on:
+  - restore-cache
+
+- name: tests
+  pull: if-not-exists
+  image: node:10
+  commands:
+  - yarn test
+  environment:
+    NODE_ENV: test
+  depends_on:
+  - install
+
+- name: build_docker_image
+  pull: if-not-exists
+  image: plugins/docker:18.09
+  settings:
+    cache_from:
+    - quay.io/sohohouse/${DRONE_REPO_NAME}:${DRONE_BRANCH}
+    - quay.io/sohohouse/${DRONE_REPO_NAME}:master
+    registry: quay.io
+    repo: quay.io/sohohouse/pull-request-size
+    tags:
+    - ${DRONE_BRANCH}
+    - ${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:7}
+  environment:
+    DOCKER_PASSWORD:
+      from_secret: docker_password
+    DOCKER_USERNAME:
+      from_secret: docker_username
+  depends_on:
+  - tests
+
+- name: helm_deploy_staging
+  pull: if-not-exists
+  image: quay.io/sohohouse/drone-helm:eu-dev
+  settings:
+    chart: ./charts/pull-request-size
+    client_only: true
+    debug: true
+    namespace: staging
+    release: prs-${DRONE_BRANCH}
+    skip_tls_verify: true
+    tiller_ns: dev
+    values: "\
+      git.branch=${DRONE_BRANCH},\
+      image.tag=${DRONE_BRANCH}-${DRONE_COMMIT_SHA:0:7},\
+      secrets.privateKey=$PRIVATE_KEY,\
+      secrets.webhookSecret=$WEBHOOK_SECRET"
+  environment:
+    API_SERVER:
+      from_secret: DEV_API_SERVER
+    KUBERNETES_TOKEN:
+      from_secret: DEV_KUBERNETES_TOKEN
+    HELM_CERT_PEM:
+      from_secret: DEV_HELM_CERT_PEM
+    HELM_KEY_PEM:
+      from_secret: DEV_HELM_KEY_PEM
+    WEBHOOK_SECRET:
+      from_secret: webhook_secret
+    PRIVATE_KEY:
+      from_secret: private_key
+  depends_on:
+  - build_docker_image
+  when:
+    branch:
+      include:
+        - master
+
+- name: rebuild-cache
+  pull: if-not-exists
+  image: drillster/drone-volume-cache
+  settings:
+    mount:
+    - ./node_modules
+    rebuild: true
+  volumes:
+  - name: drillster_cache
+    path: /cache
+  depends_on:
+  - install
+  when:
+    status:
+    - failure
+    - success
+
+volumes:
+- name: drillster_cache
+  host:
+    path: /mnt/drone-cache/drillster

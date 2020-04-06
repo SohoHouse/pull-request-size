@@ -1,0 +1,15 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: '{{ template "pull-request-size.fullname" . }}'
+  labels:
+{{ include "pull-request-size.labels" . |indent 4 }}
+spec:
+  rules:
+  - host: pull-request-size.staging.sohohousedigital.com
+    http:
+      paths:
+      - path: '/'
+        backend:
+          serviceName: '{{ template "pull-request-size.fullname" . }}'
+          servicePort: {{ .Values.service.externalPort }}
