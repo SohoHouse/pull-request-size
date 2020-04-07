@@ -46,16 +46,16 @@ spec:
           periodSeconds: 5
         env:
           - name: APP_ID
-            value: {{ .Values.config.appId }}
+            value: {{ .Values.config.appId | quote }}
           - name: WEBHOOK_SECRET
             valueFrom:
               secretKeyRef:
-                name: {{ template "pull-request-size.fullname" . }}
+                name: '{{ template "pull-request-size.fullname" . }}'
                 key: webhookSecret
           - name: PRIVATE_KEY
             valueFrom:
               secretKeyRef:
-                name: {{ template "pull-request-size.fullname" . }}
+                name: '{{ template "pull-request-size.fullname" . }}'
                 key: privateKey
         {{- with .Values.resources }}
         resources:
